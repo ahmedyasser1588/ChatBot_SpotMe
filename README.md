@@ -44,6 +44,9 @@ backend/
 │
 └── prompts/
     └── system_prompt.txt      # System Instructions & Agent Guardrails
+
+
+
 🚀 Getting StartedPrerequisitesPython 3.10+Google Gemini API Key (Obtain from Google AI Studio)Installation & SetupClone the repository:Bashgit clone [https://github.com/YOUR_USERNAME/spotme-backend.git](https://github.com/YOUR_USERNAME/spotme-backend.git)
 cd spotme-backend
 Create and activate a virtual environment:Windows:Bashpython -m venv venv
