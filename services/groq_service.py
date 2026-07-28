@@ -39,6 +39,11 @@ def run_groq_chat(messages_history):
 
     # الاستدعاء الأول للموديل
     response = client.chat.completions.create(
+	api_key = os.environ.get("GROQ_API_KEY")
+    	if not api_key:
+        	return "Error: GROQ_API_KEY is missing from environment variables."
+
+    	client = Groq(api_key=api_key)
         model=MODEL_NAME,
         messages=full_messages,
         tools=tools,

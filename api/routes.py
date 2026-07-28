@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from models.schemas import ChatRequest, QueryPlayersInput, MetricStatsInput
 from services.player_service import PlayerService
-from services.gemini_service import GeminiService
+from services.groq_service import run_groq_chat
 
 router = APIRouter()
 
