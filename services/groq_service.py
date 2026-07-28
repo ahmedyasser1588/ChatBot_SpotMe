@@ -1,50 +1,91 @@
 import os
 import json
 from groq import Groq
-from services.player_service import search_players, get_player_details # دبيات أدواتك المعتادة
+from services.player_service import PlayerService
 
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+# إنشاء Instance من الكلاس الخاص بك
+player_service = PlayerService()
 
-# 1️⃣ تعريف الأدوات (Tools Definition - OpenAI Format)
+# 1️⃣ تعريف الأدوات (Tools) متوافقة مع البرامترات المكتوبة في كودك
 tools = [
     {
         "type": "function",
         "function": {
-            "name": "search_players",
-            "description": "Search and filter players based on sport, position, min ai score, etc.",
+            "name": "query_players",
+            "description": "البحث والفلترة والترتيب في قائمة لاعبي SpotMe حسب الرياضة والنادي والعمر والتقييم.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "sport": {"type": "string", "description": "Sport type (football, basketball, etc.)"},
-                    "position": {"type": "string", "description": "Player position (ST, GK, CB, etc.)"},
-                    "min_ai_score": {"type": "number", "description": "Minimum AI score limit"}
+                    "sport": {"type": "string", "description": "نوع الرياضة: football, basketball, handball, volleyball"},
+                    "name_contains": {"type": "string", "description": "جزء من اسم اللاعب"},
+                    "club_contains": {"type": "string", "description": "اسم النادي"},
+                    "position": {"type": "string", "description": "المركز مثل ST, GK, CB"},
+                    "min_age": {"type": "integer"},
+                    "max_age": {"type": "integer"},
+                    "min_ai_score": {"type": "number"},
+                    "max_ai_score": {"type": "number"},
+                    "min_height_cm": {"type": "number"},
+                    "max_height_cm": {"type": "number"},
+                    "max_injuries": {"type": "integer"},
+                    "min_recovery": {"type": "number"},
+                    "sort_by": {"type": "string", "description": "حقل الترتيب مثل ai_score أو age"},
+                    "order": {"type": "string", "description": "asc أو desc"},
+                    "limit": {"type": "integer", "description": "عدد النتائج المطلوبة"}
                 },
                 "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_player",
+            "description": "البحث عن لاعب واحد محدد بالاسم أو الرقم التعريف (ID)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "id_or_name": {"type": "string", "description": "اسم اللاعب أو الـ player_id"}
+                },
+                "required": ["id_or_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "database_overview",
+            "description": "عرض نظرة عامة شاملة على قاعدة بيانات SpotMe والألعاب والأندية المتاحة",
+            "parameters": {
+                "type": "object",
+                "properties": {}
             }
         }
     }
 ]
 
 def run_groq_chat(messages_history):
-    # استخدام موديل Llama 3.3 70B القوي في الـ Function Calling
-    MODEL_NAME = "llama-3.3-70b-versatile"
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        return "Error: GROQ_API_KEY is missing from environment variables."
 
-    # إضافة System Prompt في البداية لو مش موجود
+    client = Groq(api_key=api_key)
+    model_name = "llama-3.3-70b-versatile"
+
     system_message = {
         "role": "system",
-        "content": "You are SpotMe AI scouting assistant. Help users analyze player data using the provided tools."
+        "content": "You are SpotMe AI scouting assistant. Use the provided tools to search player database, view stats, and answer user queries accurately in Arabic or English based on user query."
     }
-    
-    full_messages = [system_message] + messages_history
 
-    # الاستدعاء الأول للموديل
+    full_messages = [system_message]
+    for msg in messages_history:
+        if isinstance(msg, dict):
+            full_messages.append(msg)
+        else:
+            full_messages.append({"role": msg.role, "content": msg.content})
+
+    # الاستدعاء الأول
     response = client.chat.completions.create(
-	api_key = os.environ.get("GROQ_API_KEY")
-    	if not api_key:
-        	return "Error: GROQ_API_KEY is missing from environment variables."
-
-    	client = Groq(api_key=api_key)
-        model=MODEL_NAME,
+        model=model_name,
         messages=full_messages,
         tools=tools,
         tool_choice="auto",
@@ -54,31 +95,32 @@ def run_groq_chat(messages_history):
     response_message = response.choices[0].message
     tool_calls = response_message.tool_calls
 
-    # 2️⃣ التحقق إذا كان الموديل قرر يستدعي Tool (Function Calling)
+    # تنفيذ الـ Tool Calls
     if tool_calls:
-        # إضافة رد الموديل اللي طلب الـ Tool للتاريخ
         full_messages.append(response_message)
 
-        # تنفيذ الدوال المطلوبة
         for tool_call in tool_calls:
             function_name = tool_call.function.name
             function_args = json.loads(tool_call.function.arguments)
 
-            # استدعاء الدالة المناسبة
-            if function_name == "search_players":
-                function_response = search_players(**function_args)
+            function_response = None
+            if function_name == "query_players":
+                function_response = player_service.query_players(**function_args)
+            elif function_name == "get_player":
+                function_response = player_service.get_player(**function_args)
+            elif function_name == "database_overview":
+                function_response = player_service.database_overview()
 
-            # إرجاع نتيجة الدالة للموديل
             full_messages.append({
                 "tool_call_id": tool_call.id,
                 "role": "tool",
-                "name": "search_players",
-                "content": json.dumps(function_response)
+                "name": function_name,
+                "content": json.dumps(function_response, ensure_ascii=False)
             })
 
-        # الاستدعاء الثاني للموديل لتوليد الإجابة النهائية بعد الحصول على البيانات
+        # الاستدعاء الثاني لإعطاء الإجابة النهائية
         second_response = client.chat.completions.create(
-            model=MODEL_NAME,
+            model=model_name,
             messages=full_messages
         )
         return second_response.choices[0].message.content
