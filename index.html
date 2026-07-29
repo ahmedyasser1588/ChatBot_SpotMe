@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpotMe Assistant Chat</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .chat-container {
+            width: 100%;
+            max-width: 600px;
+            height: 80vh;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .chat-header {
+            background: #1a73e8;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        .chat-messages {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .message {
+            max-width: 80%;
+            padding: 10px 14px;
+            border-radius: 8px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+        .user-message {
+            align-self: flex-start;
+            background-color: #1a73e8;
+            color: white;
+            border-bottom-right-radius: 2px;
+        }
+        .bot-message {
+            align-self: flex-end;
+            background-color: #e4e6eb;
+            color: #050505;
+            border-bottom-left-radius: 2px;
+        }
+        .chat-input-area {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #ddd;
+            background: #fafafa;
+        }
+        .chat-input-area input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            outline: none;
+            font-size: 1rem;
+        }
+        .chat-input-area button {
+            margin-right: 8px;
+            padding: 10px 18px;
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .chat-input-area button:hover {
+            background-color: #1557b0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="chat-header">⚽ SpotMe Assistant</div>
+    <div class="chat-messages" id="chatMessages">
+        <div class="message bot-message">أهلاً بك! أنا مساعد SpotMe لاكتشاف المواهب. كيف يمكنني مساعدتك اليوم؟</div>
+    </div>
+    <div class="chat-input-area">
+        <input type="text" id="userInput" placeholder="اكتب سؤالك هنا..." onkeydown="if(event.key === 'Enter') sendMessage()">
+        <button onclick="sendMessage()">إرسال</button>
+    </div>
+</div>
+
+<script>
+    const API_URL = "http://localhost:8000/api/chat";
+    let conversationHistory = [];
+
+    async function sendMessage() {
+        const inputElement = document.getElementById("userInput");
+        const text = inputElement.value.trim();
+        if (!text) return;
+
+        // إضافة رسالة المستخدم في الواجهة
+        appendMessage(text, "user-message");
+        inputElement.value = "";
+
+        // حفظ الرسالة في السجل
+        conversationHistory.push({ role: "user", content: text });
+
+        // إضافة عنصر فارغ لرد البوت
+        const botMessageDiv = appendMessage("جاري التفكير...", "bot-message");
+
+        try {
+            const response = await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ messages: conversationHistory })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                botMessageDiv.innerText = "خطأ: " + (errData.detail || "حدث خطأ أثناء الاتصال بالسيرفر");
+                return;
+            }
+
+            const data = await response.json();
+            botMessageDiv.innerText = data;
+
+            // حفظ رد البوت في السجل
+            conversationHistory.push({ role: "model", content: data });
+
+        } catch (error) {
+            botMessageDiv.innerText = "حدث خطأ في الاتصال بالسيرفر. تأكد من تشغيل FastAPI.";
+        }
+    }
+
+    function appendMessage(text, className) {
+        const container = document.getElementById("chatMessages");
+        const msgDiv = document.createElement("div");
+        msgDiv.className = `message ${className}`;
+        msgDiv.innerText = text;
+        container.appendChild(msgDiv);
+        container.scrollTop = container.scrollHeight;
+        return msgDiv;
+    }
+</script>
+
+</body>
+</html>
