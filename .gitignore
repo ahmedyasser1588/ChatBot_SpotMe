@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# بيتولد من ingest.py - ملوش لازمة يتعمله commit
+data/vector_store/
